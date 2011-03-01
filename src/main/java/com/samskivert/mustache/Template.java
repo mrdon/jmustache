@@ -60,10 +60,10 @@ public class Template
         return out.toString();
     }
 
-    protected Template (Segment[] segs, Options options)
+    protected Template (Segment[] segs, Mustache.Compiler compiler)
     {
         _segs = segs;
-        this._options = options;
+        _compiler = compiler;
     }
 
     /**
@@ -72,10 +72,12 @@ public class Template
      *
      * @param ctx the context in which to look up the variable.
      * @param name the name of the variable to be resolved, which must be an interned string.
+     *
+     * @return the value associated with the supplied name or null if no value could be resolved.
      */
     protected Object getValue (Context ctx, String name, int line)
     {
-        if (!_options.isStandardsMode()) {
+        if (!_compiler.standardsMode) {
             // if we're dealing with a compound key, resolve each component and use the result to
             // resolve the subsequent component and so forth
             if (name.indexOf(".") != -1) {
@@ -109,20 +111,22 @@ public class Template
             return ctx.index;
         }
 
-        if (_options.isStandardsMode()) {
+        // if we're in standards mode, we don't search our parent contexts
+        if (_compiler.standardsMode) {
             return getValueIn(ctx.data, name, line);
-        } else {
-            while (ctx != null) {
-                Object value = getValueIn(ctx.data, name, line);
-                if (value != null) {
-                    return value;
-                }
-                ctx = ctx.parent;
+        }
+
+        while (ctx != null) {
+            Object value = getValueIn(ctx.data, name, line);
+            if (value != null) {
+                return value;
             }
             // we've popped all the way off the top of our stack of contexts, so fail
             throw new MustacheException(
                 "No key, method or field with name '" + name + "' on line " + line);
         }
+        // we've popped off the top of our stack of contexts, so return null
+        return null;
     }
 
     protected Object getValueIn (Object data, String name, int line)
@@ -162,17 +166,14 @@ public class Template
     }
 
     protected final Segment[] _segs;
-    private final Options _options;
+    protected final Mustache.Compiler _compiler;
     protected final Map<Key, VariableFetcher> _fcache =
         new ConcurrentHashMap<Key, VariableFetcher>();
 
     protected static VariableFetcher createFetcher (Key key, Options options)
     {
-        if (options.isStandardsMode()) {
-            if (".".equals(key.name)) {
-                return THIS_FETCHER;
-            }
-        } else if (key.name == THIS_NAME) {
+        // support both .name and this.name to fetch members
+        if (key.name == DOT_NAME || key.name == THIS_NAME) {
             return THIS_FETCHER;
         }
 
@@ -329,6 +330,7 @@ public class Template
         }
     };
 
+    protected static final String DOT_NAME = ".".intern();
     protected static final String THIS_NAME = "this".intern();
     protected static final String FIRST_NAME = "-first".intern();
     protected static final String LAST_NAME = "-last".intern();

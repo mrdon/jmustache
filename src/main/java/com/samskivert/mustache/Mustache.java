@@ -35,6 +35,9 @@ public class Mustache
         public final boolean escapeHTML;
         private Options options;
 
+        /** Whether or not standards mode is enabled. */
+        public final boolean standardsMode;
+
         /** Compiles the supplied template into a repeatedly executable intermediate form. */
         public Template compile (String template)
         {
@@ -49,40 +52,28 @@ public class Mustache
 
         /** Returns a compiler that either does or does not escape HTML by default. */
         public Compiler escapeHTML (boolean escapeHTML) {
-            return new Compiler(Options.builder().setEscapeHTML(escapeHTML).build());
+            return new Compiler(escapeHTML, this.standardsMode);
         }
 
-        protected Compiler (boolean escapeHTML) {
-            this(Options.builder().setEscapeHTML(escapeHTML).build());
+        /** Returns a compiler that either does or does not use standards mode. Standards mode
+         * disables the non-standard JMustache extensions like looking up missing names in a parent
+         * context. */
+        public Compiler standardsMode (boolean standardsMode) {
+            return new Compiler(this.escapeHTML, standardsMode);
         }
 
-        protected Compiler (Options options) {
-            this.escapeHTML = options.isEscapeHTML();
-            this.options = options;
-        }
-
-        /** @since 1.1 */
-        public Options getOptions () {
-            return options;
+        protected Compiler (boolean escapeHTML, boolean standardsMode) {
+            this.escapeHTML = escapeHTML;
+            this.standardsMode = standardsMode;
         }
     }
 
     /**
-     * Returns a compiler that escapes HTML by default.
+     * Returns a compiler that escapes HTML by default and does not use standards mode.
      */
     public static Compiler compiler ()
     {
-        return compiler(Options.builder().build());
-    }
-
-    /**
-     * Returns a compiler that escapes HTML by default.
-     *
-     * @since 1.1
-     */
-    public static Compiler compiler (Options options)
-    {
-        return new Compiler(options);
+        return new Compiler(true, false);
     }
 
     /**
@@ -206,7 +197,7 @@ public class Mustache
             throw new MustacheException("Template ended while parsing a tag TODO");
         }
 
-        return new Template(accum.finish(), compiler.getOptions());
+        return new Template(accum.finish(), compiler);
     }
 
     private Mustache () {} // no instantiateski
@@ -377,13 +368,12 @@ public class Mustache
         @Override public void execute (Template tmpl, Template.Context ctx, Writer out)  {
             Object value = tmpl.getValue(ctx, _name, _line);
             // TODO: configurable behavior on missing values
-            if (value != null) {
-                String text = String.valueOf(value);
-                write(out, _escapeHTML ? escapeHTML(text) : text);
-            } else {
+            if (value == null) {
                 throw new MustacheException(
-                "No key, method or field with name '" + _name + "' on line " + _line);
+                    "No key, method or field with name '" + _name + "' on line " + _line);
             }
+            String text = String.valueOf(value);
+            write(out, _escapeHTML ? escapeHTML(text) : text);
         }
         protected boolean _escapeHTML;
     }
@@ -449,9 +439,7 @@ public class Mustache
             Object value = tmpl.getValue(ctx, _name, _line);
             if (value == null) {
                 executeSegs(tmpl, ctx, out); // TODO: configurable behavior on missing values
-                return;
-            }
-            if (value instanceof Iterable<?>) {
+            } else if (value instanceof Iterable<?>) {
                 Iterable<?> iable = (Iterable<?>)value;
                 if (!iable.iterator().hasNext()) {
                     executeSegs(tmpl, ctx, out);
@@ -469,7 +457,7 @@ public class Mustache
                 if (!iter.hasNext()) {
                     executeSegs(tmpl, ctx, out);
                 }
-            }
+            } // TODO: fail?
         }
     }
 
