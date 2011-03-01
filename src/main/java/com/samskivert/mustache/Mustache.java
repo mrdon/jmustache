@@ -33,7 +33,6 @@ public class Mustache
     public static class Compiler {
         /** Whether or not HTML entities are escaped by default. */
         public final boolean escapeHTML;
-        private Options options;
 
         /** Whether or not standards mode is enabled. */
         public final boolean standardsMode;
@@ -304,7 +303,7 @@ public class Mustache
 
             default:
                 requireNoNewlines(tag, tagLine);
-                _segs.add(new VariableSegment(tag, _compiler.getOptions().isEscapeHTML(), tagLine));
+                _segs.add(new VariableSegment(tag, _compiler.escapeHTML, tagLine));
                 return this;
             }
         }

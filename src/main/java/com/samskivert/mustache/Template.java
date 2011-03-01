@@ -100,7 +100,6 @@ public class Template
                 return data;
             }
         }
-        
 
         // handle our special variables
         if (name == FIRST_NAME) {
@@ -121,9 +120,7 @@ public class Template
             if (value != null) {
                 return value;
             }
-            // we've popped all the way off the top of our stack of contexts, so fail
-            throw new MustacheException(
-                "No key, method or field with name '" + name + "' on line " + line);
+            ctx = ctx.parent;
         }
         // we've popped off the top of our stack of contexts, so return null
         return null;
@@ -143,10 +140,10 @@ public class Template
                 return fetcher.get(data, name);
             } catch (Exception e) {
                 // zoiks! non-monomorphic call site, update the cache and try again
-                fetcher = createFetcher(key, _options);
+                fetcher = createFetcher(key);
             }
         } else {
-            fetcher = createFetcher(key, _options);
+            fetcher = createFetcher(key);
         }
 
         // if we were unable to create a fetcher, just return null and our caller can either try
@@ -170,14 +167,12 @@ public class Template
     protected final Map<Key, VariableFetcher> _fcache =
         new ConcurrentHashMap<Key, VariableFetcher>();
 
-    protected static VariableFetcher createFetcher (Key key, Options options)
+    protected static VariableFetcher createFetcher (Key key)
     {
         // support both .name and this.name to fetch members
         if (key.name == DOT_NAME || key.name == THIS_NAME) {
             return THIS_FETCHER;
         }
-
-
 
         if (Map.class.isAssignableFrom(key.cclass)) {
             return MAP_FETCHER;
